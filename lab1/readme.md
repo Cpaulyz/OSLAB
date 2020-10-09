@@ -1,4 +1,4 @@
-# Hello OS
+﻿# Hello OS
 
 安装nasm
 
@@ -130,9 +130,9 @@ keyboard: keymap=$BXSHARE/keymaps/x11-pc-us.map
 
 输入6 c
 
-![image-20201006212118414](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201006212118414.png)
+![image-20201006212118414](https://img2020.cnblogs.com/blog/1958143/202010/1958143-20201010001819257-2036464664.png)
 
-![image-20201006212129929](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201006212129929.png)
+![image-20201006212129929](https://img2020.cnblogs.com/blog/1958143/202010/1958143-20201010001818903-573321368.png)
 
 
 
@@ -148,7 +148,7 @@ ld -m elf_i386 calculator.o -o calculator
 
 ## 运行截图
 
-![image-20201010001737115](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201010001737115.png)
+![image-20201010001737115](https://img2020.cnblogs.com/blog/1958143/202010/1958143-20201010001818469-1372832431.png)
 
 # Note
 
