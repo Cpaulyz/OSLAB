@@ -31,8 +31,8 @@ tmp:						db 0 ;打印临时用
 newLine:     				db  0Ah
 minus:       				db  2DH
 section .text
-  global main
-main: 
+  global _start
+_start: 
 	mov	ecx, BootMessage ; 参数二：要显示的字符串
 	mov	edx, EndMessage - BootMessage	; 参数三：字符串长度
 	call DispStr
@@ -213,6 +213,13 @@ getXY:
 		call PrintSign
 		mov edx,1
 		mov esi,[len_add]
+	skip_zero_add:
+		cmp byte[esi+number_add-1],0
+		jnz printAddchar
+		dec esi
+		cmp esi,1
+		jz printAddchar 					; 如果只剩一位了，无论如何都是要打印的
+		jmp skip_zero_add
 	printAddchar:
 		mov byte cl,[esi+number_add-1]
 		add cl,0x30
@@ -233,6 +240,13 @@ getXY:
 		call PrintSign
 		mov edx,1
 		mov esi,[len_mul]
+	skip_zero_mul:
+		cmp byte[esi+number_mul-1],0
+		jnz printMulchar
+		dec esi
+		cmp esi,1
+		jz printMulchar 					; 如果只剩一位了，无论如何都是要打印的
+		jmp skip_zero_mul
 	printMulchar:
 		; mov ecx,[number_mul]
 		mov ecx,[esi+number_mul-1]
@@ -254,13 +268,13 @@ getXY:
 		call PrintSign
 		mov edx,1
 		mov esi,[len_sub]
-	skip_zero:
+	skip_zero_sub:
 		cmp byte[esi+number_sub-1],0
 		jnz printSubchar
 		dec esi
 		cmp esi,1
 		jz printSubchar 					; 如果只剩一位了，无论如何都是要打印的
-		jmp skip_zero
+		jmp skip_zero_sub
 	printSubchar:
 		; mov ecx,[number_mul]
 		mov ecx,[esi+number_sub-1]
