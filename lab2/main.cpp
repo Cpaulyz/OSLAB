@@ -17,7 +17,6 @@ typedef unsigned char u8;   //1字节
 typedef unsigned short u16; //2字节
 typedef unsigned int u32;   //4字节
 
-#pragma pack(1) /*指定按1字节对齐*/
 class FileAndDir
 {
 public:
@@ -59,7 +58,7 @@ public:
     void printPathDetail()
     {
         char temp[64];
-        sprintf(temp, "%s %d %d:\n", this->path, this->directFile, this->direcDir);
+        sprintf(temp, "%s %d %d:\n", this->path, this->direcDir, this->directFile);
         my_printWhite(temp, strlen(temp));
     }
     // 打印-l选项的行
@@ -69,7 +68,7 @@ public:
         if (this->isDir == '1')
         {
             my_printRed(this->name, strlen(this->name));
-            sprintf(temp, " %d %d\n", this->directFile, this->direcDir);
+            sprintf(temp, " %d %d\n", this->direcDir, this->directFile);
             my_printWhite(temp, strlen(temp));
         }
         else
@@ -139,6 +138,7 @@ public:
     void CAT(FILE *fat12);
 };
 
+#pragma pack(1) /*指定按1字节对齐*/
 //偏移11个字节，前11个字节不看
 struct BPB
 {
@@ -183,7 +183,7 @@ void readFileName(char *src, char *dest, int isDir);
 // 以下是控制方法
 FileAndDir *locateFD(FileAndDir *currentDir, char *filePath);
 void doCAT(FILE *fat12, char *input);
-void doLL(char *input);
+void doLS(char *input);
 vector<string> split(const string &s, const string &seperator);
 // 以下是核心全局变量
 struct BPB *bpb_ptr;
@@ -192,13 +192,6 @@ int RootDirSectors;   // 根目录所占的扇区数
 int DataBaseSectors;  // 数据区起始扇区
 int main()
 {
-
-    char* s = "/DIR1";
-    vector<string> v = split(s, "/"); //可按多个字符来分隔;
-    for (vector<string>::size_type i = 0; i != v.size(); ++i)
-        cout << v[i] << " ";
-    cout << endl;
-
     FILE *fat12 = fopen("./fat12/a.img", "rb");
     readBPB(fat12);
     readRootEntries(fat12);
@@ -213,7 +206,7 @@ int main()
         }
         else if (input[0] == 'l' && input[1] == 's')
         {
-            doLL(input);
+            doLS(input);
         }
         else if (input[0] == 'c' && input[1] == 'a' && input[2] == 't')
         {
@@ -235,12 +228,19 @@ void doCAT(FILE *fat12, char *input)
     char *s = (char *)malloc(sizeof(char) * 128);
     strcpy(s, input);
     char *delim = " ";
-    char *target = strtok(s, delim);
+    char *target = (char *)malloc(sizeof(char) * 64);
     int get_cat = 0;
-    char *outer_ptr = NULL;
     FileAndDir *fd;
-    do
+    vector<string> v = split(input, delim); // 将输入指令按" "划分
+    if (v.size() > 2)
     {
+        char *errorMsg = "Syntax Error: 'cat' params too much.\n";
+        my_printWhite(errorMsg, strlen(errorMsg));
+        return;
+    }
+    for (int i = 0; i < v.size(); ++i)
+    {
+        strcpy(target, v.at(i).c_str());
         if (strcmp("cat", target) == 0)
         {
             if (get_cat == 1)
@@ -267,23 +267,24 @@ void doCAT(FILE *fat12, char *input)
                 return;
             }
         }
-    } while ((target = strtok(NULL, delim)));
+    }
     fd->CAT(fat12);
 }
 
-void doLL(char *input)
+void doLS(char *input)
 {
     char *s = (char *)malloc(sizeof(char) * 128);
     strcpy(s, input);
     char *delim = " ";
-    char *target = strtok(s, delim);
+    char *target = (char *)malloc(sizeof(char) * 64);
     int get_l = 0;
     int get_ll = 0;
     int get_ls = 0;
     FileAndDir *fd = root_ptr;
-    do
+    vector<string> v = split(input, delim); // 将输入指令按" "划分
+    for (int i = 0; i < v.size(); ++i)
     {
-        cout << target << endl;
+        strcpy(target, v.at(i).c_str());
         if (strcmp("ls", target) == 0)
         {
             if (get_ls == 1)
@@ -294,25 +295,34 @@ void doLL(char *input)
             }
             get_ls = 1;
         }
-        else if (strcmp("-l", target) == 0)
+        else if (target[0] == '-')
         {
-            if (get_l == 1)
+            if (strcmp("-l", target) == 0)
             {
-                char *errorMsg = "Syntax Error: 'ls' command with multiple '-l'.\n";
+                if (get_l == 1)
+                {
+                    char *errorMsg = "Syntax Error: 'ls' command with multiple '-l'.\n";
+                    my_printWhite(errorMsg, strlen(errorMsg));
+                    return;
+                }
+                get_l = 1;
+            }
+            else if (strcmp("-ll", target) == 0)
+            {
+                if (get_ll == 1)
+                {
+                    char *errorMsg = "Syntax Error: 'ls' command with multiple '-ll'.\n";
+                    my_printWhite(errorMsg, strlen(errorMsg));
+                    return;
+                }
+                get_ll = 1;
+            }else{
+                
+                char errorMsg[64]; 
+                sprintf(errorMsg, "Syntax Error: unknown param '%s'.\n",target);
                 my_printWhite(errorMsg, strlen(errorMsg));
                 return;
             }
-            get_l = 1;
-        }
-        else if (strcmp("-ll", target) == 0)
-        {
-            if (get_ll == 1)
-            {
-                char *errorMsg = "Syntax Error: 'ls' command with multiple '-ll'.\n";
-                my_printWhite(errorMsg, strlen(errorMsg));
-                return;
-            }
-            get_ll = 1;
         }
         else
         {
@@ -332,7 +342,7 @@ void doLL(char *input)
                 return;
             }
         }
-    } while ((target = strtok(NULL, delim)));
+    }
 
     if (fd->isDir == '0')
     {
@@ -461,7 +471,7 @@ void generateFD(FILE *fat12, FileAndDir *parent, int offset)
     for (j = 0; j < 11; j++)
     {
         char tem = entry_ptr->DIR_Name[j];
-        if (!((tem >= 'A' && tem <= 'Z') || (tem >= '1' && tem <= '9') || tem == ' '))
+        if (!((tem >= 'A' && tem <= 'Z') || (tem >= '0' && tem <= '9') || tem == ' '))
         {
             valid = 0;
             break;
@@ -549,8 +559,9 @@ FileAndDir *locateFD(FileAndDir *currentDir, char *filePath)
     FileAndDir *res = currentDir;
     char *target = (char *)malloc(sizeof(char) * 64);
     vector<string> v = split(filePath, "/");
-    for(int i = 0; i< v.size();++i){
-        strcpy(target,v.at(i).c_str());
+    for (int i = 0; i < v.size(); ++i)
+    {
+        strcpy(target, v.at(i).c_str());
         res = res->locate(target);
         if (res == NULL)
         {
@@ -565,7 +576,7 @@ void FileAndDir::CAT(FILE *fat12)
     char *temp;
     if (this->isDir == '1')
     {
-        temp = "Error: not a file.";
+        temp = "Error: not a file.\n";
         my_printWhite(temp, strlen(temp));
         return;
     }
