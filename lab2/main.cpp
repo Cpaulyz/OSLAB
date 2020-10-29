@@ -278,7 +278,6 @@ void doLS(char *input)
     char *delim = " ";
     char *target = (char *)malloc(sizeof(char) * 64);
     int get_l = 0;
-    int get_ll = 0;
     int get_ls = 0;
     FileAndDir *fd = root_ptr;
     vector<string> v = split(input, delim); // 将输入指令按" "划分
@@ -297,31 +296,17 @@ void doLS(char *input)
         }
         else if (target[0] == '-')
         {
-            if (strcmp("-l", target) == 0)
-            {
-                if (get_l == 1)
-                {
-                    char *errorMsg = "Syntax Error: 'ls' command with multiple '-l'.\n";
+            int j = 1;
+            while(target[j]!='\0'){
+                if(target[j]=='l'){
+                    get_l = 1;
+                }else{
+                    char errorMsg[64]; 
+                    sprintf(errorMsg, "Syntax Error: unknown param '%s'.\n",target);
                     my_printWhite(errorMsg, strlen(errorMsg));
                     return;
                 }
-                get_l = 1;
-            }
-            else if (strcmp("-ll", target) == 0)
-            {
-                if (get_ll == 1)
-                {
-                    char *errorMsg = "Syntax Error: 'ls' command with multiple '-ll'.\n";
-                    my_printWhite(errorMsg, strlen(errorMsg));
-                    return;
-                }
-                get_ll = 1;
-            }else{
-                
-                char errorMsg[64]; 
-                sprintf(errorMsg, "Syntax Error: unknown param '%s'.\n",target);
-                my_printWhite(errorMsg, strlen(errorMsg));
-                return;
+                j++;
             }
         }
         else
@@ -350,7 +335,7 @@ void doLS(char *input)
         my_printWhite(temp, strlen(temp));
         return;
     } // 检查，若为文件，没有ls，报错
-    if (get_l == 1 || get_ll == 1)
+    if (get_l == 1)
     {
         fd->LS_L();
     }
