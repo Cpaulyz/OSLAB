@@ -22,7 +22,7 @@ class FileAndDir
 public:
     char name[13];  //文件或目录的名字
     char isDir;     //是否是目录  '1'-> 是,  '0'  -> 不是
-    char path[256]; // 根目录下的parentDir="/"
+    char path[256]; // 全路径名词，根目录下的path="/"
     int fileSize;   //文件的大小，如果是目录的话，值为0
     int startClus;  //文件或目录的起始簇
     int directFile; //文件直接子文件数量
@@ -148,12 +148,12 @@ struct BPB
     u8 BPB_NumFATs;     //FAT表个数
     u16 BPB_RootEntCnt; //根目录最大文件数
     u16 BPB_TotSec16;   //总扇区数
-    u8 BPB_Media;
-    u16 BPB_FATSz16; //FAT占用的扇区数
-    u16 BPB_SecPerTrk;
-    u16 BPB_NumHeads;
-    u32 BPB_HiddSec;
-    u32 BPB_TotSec32; //如果BPB_TotSec16为0，该值为总扇区数
+    u8 BPB_Media;       //介质描述符
+    u16 BPB_FATSz16;    //FAT占用的扇区数
+    u16 BPB_SecPerTrk;  //每磁道扇区数
+    u16 BPB_NumHeads;   //磁头数/面数
+    u32 BPB_HiddSec;    //隐藏扇区数
+    u32 BPB_TotSec32;   //如果BPB_TotSec16为0，该值为总扇区数
 };
 //BPB至此结束，长度25字节
 
@@ -161,12 +161,12 @@ struct BPB
 struct RootEntry
 {
     char DIR_Name[11];
-    u8 DIR_Attr; //文件属性
-    char reserved[10];
-    u16 DIR_WrtTime;
-    u16 DIR_WrtDate;
-    u16 DIR_FstClus; //开始簇号
-    u32 DIR_FileSize;
+    u8 DIR_Attr;        //文件属性
+    char reserved[10];  //保留位
+    u16 DIR_WrtTime;    //最后一次写入时间
+    u16 DIR_WrtDate;    //最后一次写入日期
+    u16 DIR_FstClus;    //开始簇号
+    u32 DIR_FileSize;   //文件大小
 };
 //根目录条目结束，32字节
 
@@ -192,6 +192,8 @@ int RootDirSectors;   // 根目录所占的扇区数
 int DataBaseSectors;  // 数据区起始扇区
 int main()
 {
+    // FILE *fat12 = fopen("./fat12/a1.img", "rb");
+    // FILE *fat12 = fopen("./fat12/b.img", "rb");
     FILE *fat12 = fopen("./fat12/a.img", "rb");
     readBPB(fat12);
     readRootEntries(fat12);
@@ -331,7 +333,7 @@ void doLS(char *input)
 
     if (fd->isDir == '0')
     {
-        char *temp = "Error: not a dir.";
+        char *temp = "Error: not a dir.\n";
         my_printWhite(temp, strlen(temp));
         return;
     } // 检查，若为文件，没有ls，报错
@@ -412,8 +414,8 @@ void readChildEntries(FILE *fat12, FileAndDir *parent, int startClus)
 {
     int offset = DataBaseSectors * bpb_ptr->BPB_BytsPerSec;
     int currentClus = startClus; // 可能有多个簇来保存
-    int numOfFile = 0;           // 子文件数
-    int numOfDir = 0;            // 子目录数
+    // int numOfFile = 0;           // 子文件数
+    // int numOfDir = 0;            // 子目录数
     while (true)
     {
         int nextClus = readFAT(fat12, currentClus);
@@ -441,7 +443,7 @@ void readChildEntries(FILE *fat12, FileAndDir *parent, int startClus)
 /*
 构造文件/目录实体
 parent：父目录
-offset：Entry在FAT中的偏移量
+offset：Entry在fat12中的偏移量
 抽出一个共同方法，在生成文件树的时候进行复用
 */
 void generateFD(FILE *fat12, FileAndDir *parent, int offset)
@@ -593,6 +595,8 @@ void FileAndDir::CAT(FILE *fat12)
             break; // end
         }
     }
+    temp = "\n";
+    my_printWhite(temp, strlen(temp));
 }
 
 vector<string> split(const string &s, const string &seperator)
