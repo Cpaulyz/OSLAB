@@ -29,6 +29,33 @@ PRIVATE void push_pos(CONSOLE* p_con,int pos);
 PRIVATE int pop_pos(CONSOLE* p_con);
 PUBLIC void exit_esc(CONSOLE* p_con);
 PUBLIC void search(CONSOLE *p_con);
+PRIVATE void redo(CONSOLE *p_con);
+PUBLIC void push_out_char(CONSOLE* p_con,char ch);
+PUBLIC void push_out_char(CONSOLE* p_con,char ch){
+	// 新增，压入操作队列
+	p_con->out_char_stack.ch[p_con->out_char_stack.ptr++]=ch;
+}
+/*======================================================================*
+		新增方法，redo以实现撤销操作，少做1步的操作
+ *======================================================================*/
+PRIVATE void redo(CONSOLE *p_con){
+	int start;
+	if(mode==0){
+		start = 0;
+	}else if(mode==1){
+		start = p_con->out_char_stack.search_start_ptr;
+	}
+	p_con->out_char_stack.ptr-=2; // z也被压栈了，所以要-=2而不是1
+	if(p_con->out_char_stack.ptr<=start){
+		p_con->out_char_stack.ptr=start;
+		return;		// 如果已经清空了，直接返回，不操作
+	} 
+	int i;
+	for(i=start;i<p_con->out_char_stack.ptr;++i){
+		out_char(p_con,p_con->out_char_stack.ch[i]);
+	}
+}
+
 /*======================================================================*
 		新增方法，搜索，并将搜索结果标为红色
  *======================================================================*/
@@ -63,16 +90,19 @@ PUBLIC void exit_esc(CONSOLE* p_con){
 	u8* p_vmem = (u8*)(V_MEM_BASE + p_con->cursor * 2);
 	// 清屏，用空格填充
 	int i;
+	// 删除ESC开始后的红色输入
 	for(i=0;i<p_con->cursor-p_con->search_start_pos;++i){ 
 		*(p_vmem-2-2*i) = ' ';
 		*(p_vmem-1-2*i) = DEFAULT_CHAR_COLOR;
 	}
+	// 把ESC前的普通输入还原为白色
 	for(i=0;i<p_con->search_start_pos*2;i+=2){ 
 		*(u8*)(V_MEM_BASE + i + 1) = DEFAULT_CHAR_COLOR;
 	}
 	// 复位指针
 	p_con->cursor = p_con->search_start_pos;
 	p_con->pos_stack.ptr = p_con->pos_stack.search_start_ptr;
+	p_con->out_char_stack.ptr = p_con->out_char_stack.search_start_ptr;
 	flush(p_con); // 更新p_con，这个不能漏
 }
 /*======================================================================*
@@ -106,6 +136,9 @@ PUBLIC void init_screen(TTY* p_tty)
 	p_tty->p_console->current_start_addr = p_tty->p_console->original_addr;
 	// 初始化pos_stack的ptr指针
 	p_tty->p_console->pos_stack.ptr = 0;
+	// 初始化out_char_stack
+	p_tty->p_console->out_char_stack.ptr = 0;
+
 
 	/* 默认光标位置在最开始处 */
 	p_tty->p_console->cursor = p_tty->p_console->original_addr;
@@ -160,8 +193,6 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 				*(p_vmem-2-2*i) = ' ';
 				*(p_vmem-1-2*i) = DEFAULT_CHAR_COLOR;
 			}
-			// *(p_vmem-2) = ' ';
-			// *(p_vmem-1) = DEFAULT_CHAR_COLOR;
 		}
 		break;
 	case '\t': // TAB输出，将cursor往后移动TAB_WIDTH
@@ -178,8 +209,28 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 		break;
 	case 'z':
 	case 'Z':
-		if(control){
-			ch = '*';
+		if(control&&(mode==0||mode==1)){ // mode=0或1下才可以进行撤销，逻辑不一样，只能撤销当前模式下的输入 
+			int temp; // 清屏开始的位置
+			if(mode==0){
+				temp = 0;	
+				// 初始化pos_stack的ptr指针
+				p_con->pos_stack.ptr = 0;
+			}else if(mode==1){
+				temp = p_con->search_start_pos*2;
+				// 还原
+				p_con->pos_stack.ptr = p_con->pos_stack.search_start_ptr;
+			}
+			// clean and init screen
+			disp_pos = temp;
+			int i;
+			for (i = 0 ; i < SCREEN_SIZE; ++i){
+				disp_str(" ");
+			}
+			disp_pos = temp;
+			p_con->cursor = disp_pos / 2;
+			flush(p_con);
+			redo(p_con);
+			return; // 撤销操作后直接返回
 		}
 	default:
 		if (p_con->cursor <

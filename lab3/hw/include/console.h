@@ -25,6 +25,13 @@ typedef struct cursor_pos_stack
 	int search_start_ptr;/*新增：ESC模式开始时候的ptr位置*/
 }POSSTACK;
 
+typedef struct out_char_stack 
+{
+	int ptr; //offset
+	char ch[SCREEN_SIZE];
+	int search_start_ptr;/*新增：ESC模式开始时候的ptr位置*/
+}OUTCHARSTACK;
+
 /* CONSOLE */
 typedef struct s_console
 {
@@ -34,6 +41,7 @@ typedef struct s_console
 	unsigned int	cursor;				/* 当前光标位置 */
 	unsigned int 	search_start_pos;	/*新增：ESC模式开始时候的cursor位置*/
 	POSSTACK pos_stack;					/*新增*/	
+	OUTCHARSTACK out_char_stack;		/*新增*/
 }CONSOLE;
 
 

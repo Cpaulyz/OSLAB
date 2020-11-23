@@ -108,8 +108,8 @@ void TestA()
 	while (1) {
 		if(mode==0){
 			// disp_str("A."); 
-			// cleanScreen();
-			// init_all_screen();
+			cleanScreen();
+			init_all_screen();
 			milli_delay(100000); //经过尝试发现设置为 100000 差不多是20秒左右
 		}else{
 			milli_delay(10);

@@ -106,6 +106,7 @@ PUBLIC void in_process(TTY *p_tty, u32 key)
 				// 记录ESC开始前的位置
 				p_tty->p_console->search_start_pos = p_tty->p_console->cursor;
 				p_tty->p_console->pos_stack.search_start_ptr = p_tty->p_console->pos_stack.ptr;
+				p_tty->p_console->out_char_stack.search_start_ptr = p_tty->p_console->out_char_stack.ptr;
 			}
 			else if (mode == 1)
 			{
@@ -209,7 +210,7 @@ PRIVATE void tty_do_write(TTY *p_tty)
 			p_tty->p_inbuf_tail = p_tty->in_buf;
 		}
 		p_tty->inbuf_count--;
-
+		push_out_char(p_tty->p_console,ch); // 新增，压入操作记录栈
 		out_char(p_tty->p_console, ch);
 	}
 }
