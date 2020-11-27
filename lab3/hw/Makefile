@@ -41,6 +41,9 @@ everything : $(ORANGESBOOT) $(ORANGESKERNEL)
 
 all : realclean everything
 
+run: image
+	/opt/bochs-2.6.9/bochs -f bochsrc
+
 image : realclean everything clean buildimg
 
 clean :
