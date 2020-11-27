@@ -67,7 +67,23 @@ PUBLIC void search(CONSOLE *p_con){
 		int found = 1; // 是否匹配
 		// 遍历匹配
 		for(j = p_con->search_start_pos*2;j<p_con->cursor*2;j+=2){
-			if(*((u8*)(V_MEM_BASE+end))==*((u8*)(V_MEM_BASE+j))){
+			if(*((u8*)(V_MEM_BASE+end))==' '){ // 如果是空格，特殊处理
+				if(*((u8*)(V_MEM_BASE+j))!=' '){ // 如果压根不是空格，直接不做了，break
+					found = 0 ;
+					break;
+				}
+				if(*((u8*)(V_MEM_BASE+end+1))==TAB_CHAR_COLOR){ // 如果是TAB
+					if(*((u8*)(V_MEM_BASE+j+1))==TAB_CHAR_COLOR){
+						end+=2;
+					}else{
+						found = 0;
+						break;
+					}
+				}else{ // 普通空格
+					end+=2;
+				}
+			}
+			else if(*((u8*)(V_MEM_BASE+end))==*((u8*)(V_MEM_BASE+j))){
 				end+=2;
 			}else{
 				found = 0;
@@ -201,7 +217,7 @@ PUBLIC void out_char(CONSOLE* p_con, char ch)
 			int i;
 			for(i=0;i<TAB_WIDTH;++i){ // 用空格填充
 				*p_vmem++ = ' ';
-				*p_vmem++ = DEFAULT_CHAR_COLOR;
+				*p_vmem++ = TAB_CHAR_COLOR; // tab空格的颜色是特殊的，在search的时候要进行区分
 			}
 			push_pos(p_con,p_con->cursor);
 			p_con->cursor += TAB_WIDTH; // 调整光标

@@ -17,6 +17,7 @@
 #define TAB_WIDTH 			4
 
 #define DEFAULT_CHAR_COLOR	0x07	/* 0000 0111 黑底白字 */
+#define TAB_CHAR_COLOR 0x2 /*绿色，随便拿个用不到的颜色*/
 /*新增，记录光标曾在位置*/
 typedef struct cursor_pos_stack 
 {

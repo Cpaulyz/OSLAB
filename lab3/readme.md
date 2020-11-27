@@ -898,3 +898,57 @@ PRIVATE void redo(CONSOLE *p_con){
 }
 ```
 
+## 2.8 TAB识别
+
+空格和Tab识别要区分开
+
+在`console.h`中定义一个特殊的颜色，其实是啥都行，这里用的是绿色
+
+```c
+#define TAB_CHAR_COLOR 0x2 /*绿色，随便拿个用不到的颜色*/
+```
+
+输出TAB的时候，改用TAB_CHAR_COLOR，反正也看不见颜色
+
+```C
+	case '\t': // TAB输出，将cursor往后移动TAB_WIDTH
+		if(p_con->cursor < p_con->original_addr +
+		    p_con->v_mem_limit - TAB_WIDTH){
+			int i;
+			for(i=0;i<TAB_WIDTH;++i){ // 用空格填充
+				*p_vmem++ = ' ';
+				*p_vmem++ = TAB_CHAR_COLOR; // tab空格的颜色是特殊的，在search的时候要进行区分
+			}
+			push_pos(p_con,p_con->cursor);
+			p_con->cursor += TAB_WIDTH; // 调整光标
+		}
+		break;
+```
+
+修改搜索逻辑，添加一个if分支，对空格进行特殊判断即可，遇到空格的时候往后看一步颜色
+
+```c
+			if(*((u8*)(V_MEM_BASE+end))==' '){ // 如果是空格，特殊处理
+				if(*((u8*)(V_MEM_BASE+j))!=' '){ // 如果压根不是空格，直接不做了，break
+					found = 0 ;
+					break;
+				}
+				if(*((u8*)(V_MEM_BASE+end+1))==TAB_CHAR_COLOR){ // 如果是TAB
+					if(*((u8*)(V_MEM_BASE+j+1))==TAB_CHAR_COLOR){
+						end+=2;
+					}else{
+						found = 0;
+						break;
+					}
+				}else{ // 普通空格
+					end+=2;
+				}
+			}
+			else if(*((u8*)(V_MEM_BASE+end))==*((u8*)(V_MEM_BASE+j))){
+				end+=2;
+			}else{
+				found = 0;
+				break;
+			}
+```
+
