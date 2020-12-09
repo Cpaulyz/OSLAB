@@ -25,6 +25,7 @@ void restart();
 void TestA();
 void TestB();
 void TestC();
+void F();
 
 /* i8259.c */
 PUBLIC void put_irq_handler(int irq, irq_handler handler);
@@ -39,11 +40,16 @@ PUBLIC void clock_handler(int irq);
 /* proc.c */
 PUBLIC  int     sys_get_ticks();        /* sys_call */
 PUBLIC  void     sys_myprint(char* s);
+PUBLIC  void     sys_myprint_color(char* s);
 PUBLIC  void     sys_sleep(int milli_seconds);
+PUBLIC  void     sys_p(void* mutex);
+PUBLIC  void     sys_v(void* mutex);
 
 /* syscall.asm */
 PUBLIC  void    sys_call();             /* int_handler */
 PUBLIC  int     get_ticks();
 PUBLIC  void    myprint(char* s);  /*封装打印的系统调用*/ 
 PUBLIC  void    mysleep(int milli_seconds);  /*封装睡眠*/ 
+PUBLIC  void    P(void* mutex);  
+PUBLIC  void    V(void* mutex);   
 

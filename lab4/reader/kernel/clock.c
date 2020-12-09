@@ -20,22 +20,26 @@
 PUBLIC void clock_handler(int irq)
 {
 	ticks++;
+	
+	// disp_str("#");
 	// if(p_proc_ready->wakeup_ticks > get_ticks()){
 	// 	schedule();
 	// 	return;
 	// }
 	p_proc_ready->ticks--;
 
-	if (k_reenter != 0) {
-		return;
-	}
+	// if (k_reenter != 0) {
+	// 	return;
+	// }
 
 	// 若开启，则为非抢占式
-	if (p_proc_ready->ticks > 0) {
-		return;
-	}
+	// if (p_proc_ready->ticks > 0) {
+	// 	return;
+	// }
+	// if(p_proc_ready->isBlock!=1){
+		schedule();
+	// }
 
-	schedule();
 
 }
 
