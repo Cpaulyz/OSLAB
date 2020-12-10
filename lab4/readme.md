@@ -1,10 +1,10 @@
-## 添加新task
+## 1 添加新task
 
 ![image-20201208105527572](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201208105527572.png)
 
-## 封装系统调用
+## 2 封装系统调用
 
-### myprint
+### 2.1 myprint
 
 `proto.h`中
 
@@ -63,7 +63,7 @@ sys_call:
         ret
 ```
 
-### mysleep
+### 2.2 mysleep
 
 同上的步骤跳过，仅叙述不同的
 
@@ -92,7 +92,7 @@ sys_call:
 	}
 	```
 
-### PV操作
+### 2.3 PV操作
 
 ```c
 /*======================================================================*
@@ -137,9 +137,17 @@ PUBLIC void wakeup(Semaphore *mutex)
 {
 
 	PROCESS *wake = mutex->queue[0];
+	int i,index=0;
+	// 选出优先级最高的进程，优先唤醒
+	for (i = 0; i < (-mutex->value+1); ++i)
+	{
+		if(mutex->queue[i]->priority > wake->priority){
+			wake = mutex->queue[i];
+			index = i;
+		}
+	}
 	//然后整体往前移,现在value指的是队列中剩下元素个数的负数
-	int i;
-	for (i = 0; i < (-mutex->value); ++i)
+	for (i = index; i < (-mutex->value); ++i)
 	{
 		mutex->queue[i] = mutex->queue[i + 1];
 	}
@@ -147,9 +155,14 @@ PUBLIC void wakeup(Semaphore *mutex)
 }
 ```
 
-## 读者优先
+## 3 读者优先
 
-### 修改PROCESS
+### 3.1 理解
+
+* 如果有读者在读，写者就得一直等待；
+* 读者进程的优先级高于写者进程，这意味着在进程调度和睡眠唤醒时候都是如此；
+
+### 3.2 修改PROCESS
 
 ```c
 typedef struct s_proc
@@ -165,6 +178,8 @@ typedef struct s_proc
 	int needTime;		// 需要的时间片
 	int useTime;		// ·
 	int isBlock;		// 1，被阻塞；0.非阻塞
+	int isDone;			// 1，已完成；0，未完成
+	char type;			// 'r'/'w'
 	u32 pid;		 /* process id passed in from MM */
 	char p_name[16]; /* name of the process */
 } PROCESS;
@@ -180,7 +195,7 @@ typedef struct s_proc
 * useTime，已使用的时间片，调度算法总会选择优先级最高进程中使用时间片最少的进程
 * isBlock，阻塞状态，pv操作使用，如果在P时候被sleep，则Block；V时wake，则取消Block
 
-### 时间中断处理
+### 3.3 时间中断处理
 
 ```c
 /*======================================================================*
@@ -206,7 +221,7 @@ PUBLIC void clock_handler(int irq)
 
 去掉原有代码一些不必要的东西
 
-### 信号量
+### 3.4 信号量
 
 ```c
 // global.h
@@ -229,26 +244,41 @@ EXTERN char nowStatus;
 
 ```c
 /*======================================================================*
-                               TestA
+                               A
  *======================================================================*/
-void TestA()
+void A()
 {
 	int i = 0;
+		// mysleep(10);
 	while (1)
 	{
 		P(&readMutex);
+		// 判断修改在读人数
+		P(&countMutex);
+		if(readCount==0){
+			P(&writeMutex);
+		}
+		readCount++;
+		V(&countMutex);
 		int j;
-		// printColorStr("Astart.   ", 'r');
 		printColorStr("A start.  ", 'r');
 		for (j = 0; j < p_proc_ready->needTime; ++j)
 		{
-			printColorStr("read A.   ", 'r');
+			printColorStr("A reading.", 'r');
 			if(j==p_proc_ready->needTime-1){
 				printColorStr("A end.    ", 'r');
+			}else{
+				milli_delay(10);
 			}
-			milli_delay(10);
 		}
+		P(&countMutex);
+		readCount--;
+		if(readCount==0){
+			V(&writeMutex);
+		}
+		V(&countMutex);
 		V(&readMutex);
+		milli_delay(10);
 	}
 }
 ```
@@ -269,7 +299,7 @@ void F()
 
 
 
-### 调度算法
+### 3.5 调度算法
 
 想法：
 
@@ -308,20 +338,63 @@ PUBLIC void schedule()
 	}
 	select->useTime++;
 	p_proc_ready = select;
+	if(p_proc_ready->type=='r'||p_proc_ready->type=='w'){ // 修改状态，供F打印
+		nowStatus = p_proc_ready->type;
+	}
 	enable_irq(CLOCK_IRQ);
 }
 ```
 
+### 3.6 结果
+
+#### 并发量1
+
+默认情况下，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
+
+![image-20201210220307993](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210220307993.png)
+
+为了体现一下写者进程，我们在ABC进程开头加上`mysleep(10)`
+
+结果如下图所示。在一开始，读者进程让了一个时间片给写者进程，D开始写，因此读者进程等待写进程接受。在这时E也进入到了`writeMutex`的队列中。
+
+在D接受后，ABC依次运行，运行到A结束后，ABC进程卡在了` P(&writeMutex);}`，给了E进程运行的机会。可是这也只运行一次，之后DE都饿死了
+
+![image-20201210233906564](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210233906564.png)
+
+#### 并发量2
+
+默认情况下，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
+
+![image-20201210233635789](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210233635789.png)
+
+为了体现一下写者进程，我们在ABC进程开头加上`mysleep(10)`
+
+结果如下图所示。在一开始，读者进程让了一个时间片给写者进程，D开始写，因此读者进程等待写进程接受。在这时E也进入到了`writeMutex`的队列中。之后，由于DE总有机会进入`writeMutex`，所以总能使得ABC进程卡在了` P(&writeMutex);}`中，偷的时间运行。
+
+![image-20201210234401660](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210234401660.png)
+
+#### 并发量3
+
+默认情况下，写者进程被饿死。
+
+![image-20201210233540526](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210233540526.png)
+
+为了体现一下写者进程，我们在ABC进程开头加上`mysleep(10)`，解释如并发量2的情况
+
+![image-20201210234740205](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210234740205.png)
+
+## 4 写者优先
+
 ### 结果
 
-**并发量1**
+#### 并发量1
 
-![image-20201210002202015](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201210002202015.png)
+![image-20201210235107979](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210235107979.png)
 
-**并发量2**
+#### 并发量2
 
-![image-20201210002109412](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201210002236264.png)
+![image-20201210235038411](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210235038411.png)
 
-**并发量3**
+#### 并发量3
 
-![image-20201210002236264](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201210002109412.png)
+![image-20201210235013853](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210235013853.png)

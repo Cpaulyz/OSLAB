@@ -58,8 +58,8 @@ PUBLIC int kernel_main()
 	proc_table[0].type = proc_table[1].type = proc_table[2].type = 'r';
 	proc_table[3].type = proc_table[4].type  = 'w';
 
-	int readPriority = 2;
-	int writePriority = 1;
+	int readPriority = 1;
+	int writePriority = 2;
 
 	proc_table[0].priority = readPriority; //A
 	proc_table[1].priority = readPriority; //B
@@ -81,11 +81,14 @@ PUBLIC int kernel_main()
 	p_proc_ready = proc_table;
 
 	/*初始化信号量相关*/
-	readNum = 3;
+	readNum = 1;
 	readMutex.value = readNum;
 	writeNum = 1;
 	writeMutex.value = writeNum;
-	countMutex.value = 1;
+	readCountMutex.value = 1;
+	writeCountMutex.value = 1;
+	readPermission.value = 0;
+	readPermissionMutex.value = 1;
 
 	/* 初始化 8253 PIT */
 	out_byte(TIMER_MODE, RATE_GENERATOR);
@@ -113,21 +116,27 @@ PUBLIC int kernel_main()
 void A()
 {
 	int i = 0;
-		// mysleep(10);
 	while (1)
 	{
+		P(&readPermissionMutex);
+		if(writeCount!=0){
+			P(&readPermission);
+		}
+		V(&readPermissionMutex);
+
+		P(&readMutex);
 
 		// 判断修改在读人数
-		P(&countMutex);
+		P(&readCountMutex);
 		if(readCount==0){
 			P(&writeMutex);
 		}
 		readCount++;
-		V(&countMutex);
+		V(&readCountMutex);
 
-		P(&readMutex);
 		int j;
 		printColorStr("A start.  ", 'r');
+		// printColorStr("<A,R,+> ", 'r');
 		for (j = 0; j < p_proc_ready->needTime; ++j)
 		{
 			printColorStr("A reading.", 'r');
@@ -137,19 +146,19 @@ void A()
 				milli_delay(10);
 			}
 		}
-		V(&readMutex);
 
 
-		P(&countMutex);
+		P(&readCountMutex);
 		readCount--;
 		if(readCount==0){
 			V(&writeMutex);
 		}
-		V(&countMutex);
+		V(&readCountMutex);
 
-
-		// p_proc_ready->isDone = 1;
-		milli_delay(10);
+		V(&readMutex);
+		
+		p_proc_ready->isDone = 1;
+			milli_delay(10);
 	}
 }
 
@@ -159,20 +168,24 @@ void A()
 void B()
 {
 	int i = 0x1000;
-		// mysleep(10);
 	while (1)
-	{
+	{		
+		P(&readPermissionMutex);
+		if(writeCount!=0){
+			P(&readPermission);
+		}
+		V(&readPermissionMutex);
 
+		P(&readMutex);
 
 		// 判断修改在读人数
-		P(&countMutex);
+		P(&readCountMutex);
 		if(readCount==0){
 			P(&writeMutex);
 		}
 		readCount++;
-		V(&countMutex);
+		V(&readCountMutex);
 
-		P(&readMutex);
 		printColorStr("B start.  ", 'g');
 		int j;
 		for (j = 0; j < p_proc_ready->needTime; ++j)
@@ -184,18 +197,17 @@ void B()
 				milli_delay(10);
 			}
 		}
-		V(&readMutex);
 		
-		P(&countMutex);
+		P(&readCountMutex);
 		readCount--;
 		if(readCount==0){
 			V(&writeMutex);
 		}
-		V(&countMutex);
+		V(&readCountMutex);
 
-		// V(&readMutex);
-		milli_delay(10);
-		// p_proc_ready->isDone = 1;
+		V(&readMutex);
+		p_proc_ready->isDone = 1;
+			milli_delay(10);
 	}
 }
 
@@ -205,20 +217,24 @@ void B()
 void C()
 {
 	int i = 0x2000;
-	// mysleep(10);
 	while (1)
-	{
+	{		
+		P(&readPermissionMutex);
+		if(writeCount!=0){
+			P(&readPermission);
+		}
+		V(&readPermissionMutex);
 
+		P(&readMutex);		
 		
 		// 判断修改在读人数
-		P(&countMutex);
+		P(&readCountMutex);
 		if(readCount==0){
 			P(&writeMutex);
 		}
 		readCount++;
-		V(&countMutex);
+		V(&readCountMutex);
 
-		P(&readMutex);		
 		printColorStr("C start.  ", 'b');
 		int j;
 		for (j = 0; j < p_proc_ready->needTime; ++j)
@@ -230,23 +246,28 @@ void C()
 				milli_delay(10);
 			}
 		}
-		V(&readMutex);
 
-		P(&countMutex);
+		P(&readCountMutex);
 		readCount--;
 		if(readCount==0){
 			V(&writeMutex);
 		}
-		V(&countMutex);
+		V(&readCountMutex);
 		
-		// p_proc_ready->isDone = 1;
+		V(&readMutex);
+		p_proc_ready->isDone = 1;
 			milli_delay(10);
 	}
 }
 void D(){
+	
+		mysleep(10);
 	while (1)
 	{
-		// printColorStr("D xxxxx.  ", 'p');
+		P(&writeCountMutex);
+		writeCount++;
+		V(&writeCountMutex);
+
 		P(&writeMutex);
 		printColorStr("D start.  ", 'p');
 		int j;
@@ -260,15 +281,27 @@ void D(){
 			}
 		}
 		V(&writeMutex);
+
+		P(&writeCountMutex);
+		writeCount--;
+		if(writeCount==0&&readPermission.value<0){ // 如果有读进程在等待
+			V(&readPermission);
+		}
+		V(&writeCountMutex);
 		
-				milli_delay(10);
+		p_proc_ready->isDone = 1;
+		milli_delay(10);
 	}
 	
 }
 void E(){
+		mysleep(10);
 	while (1)
 	{
-		// printColorStr("E xxxxx.  ", 'y');
+		P(&writeCountMutex);
+		writeCount++;
+		V(&writeCountMutex);
+
 		P(&writeMutex);
 		printColorStr("E start.  ", 'y');
 		int j;
@@ -282,8 +315,18 @@ void E(){
 			}
 		}
 		V(&writeMutex);
+
+		P(&writeCountMutex);
 		
-				milli_delay(10);
+		writeCount--;
+		if(writeCount==0&&readPermission.value<0){ // 如果有读进程在等待
+			V(&readPermission);
+			
+		}
+		V(&writeCountMutex);
+		
+		p_proc_ready->isDone = 1;
+		milli_delay(10);
 	}
 	
 }
@@ -294,15 +337,7 @@ void F()
 		if (nowStatus == 'r')
 		{
 			printColorStr("<read==",'w');
-			int rc;
-			if(readMutex.value>=0){
-				rc=readNum-readMutex.value;
-			}
-			else{
-				rc=readNum;
-			}
-			// char num = '0' + readCount - 0;
-			char num = '0' + rc - 0;
+			char num = '0' + readCount - 0;
 			char tem[4] = {num,'>',' ','\0'};
 			printColorStr(tem,'w');
 		}

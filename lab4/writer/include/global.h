@@ -36,11 +36,17 @@ typedef struct semaphore{
 }Semaphore;
 
 
-EXTERN Semaphore readMutex;
-EXTERN Semaphore writeMutex;
-EXTERN Semaphore countMutex;
+EXTERN Semaphore readMutex; // =1 ，保证只有一个在读
+EXTERN Semaphore writeMutex; // 读并发
+EXTERN Semaphore readCountMutex;
+EXTERN Semaphore writeCountMutex;
+EXTERN Semaphore readPermission; // 同步锁，value=0
+EXTERN Semaphore readPermissionMutex; // 1，保证只有一个读者被卡在readPermission
 EXTERN int readNum;     // 允许同时读的个数
 EXTERN int writeNum;    // 允许同时写的个数，默认为1
 EXTERN int readCount;   // 正在读的个数
+EXTERN int writeCount;   // 正在写的个数
+
+EXTERN int waiting; // 1,有读进程在等待；0,没用读进程在等待
 
 EXTERN char nowStatus;
