@@ -19,7 +19,8 @@
 PUBLIC void schedule()
 {
 	disable_irq(CLOCK_IRQ);
-	
+	// 先检查一遍，如果都Done了，重新开始
+	check();
 	PROCESS *select;
 	for (select = proc_table; select < proc_table + NR_TASKS; select++)
 	{
@@ -40,7 +41,6 @@ PUBLIC void schedule()
 			}
 		}
 	}
-	// disp_int(select-proc_table);
 	select->useTime++;
 	p_proc_ready = select;
 	if(p_proc_ready->type=='r'||p_proc_ready->type=='w'){ // 修改状态，供F打印
@@ -137,5 +137,23 @@ PUBLIC int isRunnable(PROCESS* p){
 		return 1;
 	}else{
 		return 0;
+	}
+}
+void check(){
+	PROCESS *p;
+	int allDone = 1;
+	for (p = proc_table; p < proc_table + NR_TASKS-1; p++){
+		if(p->isDone==0){
+			allDone = 0;
+			return;
+		}
+	}
+	if(allDone==1){
+		//如果全部做完了，任务重启
+		for (p = proc_table; p < proc_table + NR_TASKS-1; p++){
+			p->isDone = 0;
+			p->useTime = 0;
+		}
+		disp_str("<RESTART> ");
 	}
 }

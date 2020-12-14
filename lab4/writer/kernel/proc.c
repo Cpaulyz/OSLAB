@@ -44,6 +44,11 @@ PUBLIC void schedule()
 		}
 	}
 	select->useTime++;
+	// disp_str("<");
+	// disp_int(select-proc_table);
+	// disp_int(select->useTime);
+	// disp_str(">");
+	
 	p_proc_ready = select;
 	if(p_proc_ready->type=='r'||p_proc_ready->type=='w'){ // 修改状态，供F打印
 		nowStatus = p_proc_ready->type;

@@ -56,17 +56,17 @@ PUBLIC int kernel_main()
 	}
 
 	proc_table[0].type = proc_table[1].type = proc_table[2].type = 'r';
-	proc_table[3].type = proc_table[4].type  = 'w';
+	proc_table[3].type = proc_table[4].type = 'w';
 
 	int readPriority = 1;
 	int writePriority = 2;
 
-	proc_table[0].priority = readPriority; //A
-	proc_table[1].priority = readPriority; //B
-	proc_table[2].priority = readPriority; //C
+	proc_table[0].priority = readPriority;	//A
+	proc_table[1].priority = readPriority;	//B
+	proc_table[2].priority = readPriority;	//C
 	proc_table[3].priority = writePriority; //D
 	proc_table[4].priority = writePriority; //E
-	proc_table[5].priority = 99; //F
+	proc_table[5].priority = 99;			//F
 
 	proc_table[0].ticks = proc_table[0].needTime = 2;
 	proc_table[1].ticks = proc_table[1].needTime = 3;
@@ -81,14 +81,17 @@ PUBLIC int kernel_main()
 	p_proc_ready = proc_table;
 
 	/*初始化信号量相关*/
-	readNum = 1;
+	readNum = 3;
 	readMutex.value = readNum;
 	writeNum = 1;
 	writeMutex.value = writeNum;
 	readCountMutex.value = 1;
 	writeCountMutex.value = 1;
-	readPermission.value = 0;
+	readPermission.value = 1;
 	readPermissionMutex.value = 1;
+
+	// 是否解决饿死
+	solveHunger = 0;
 
 	/* 初始化 8253 PIT */
 	out_byte(TIMER_MODE, RATE_GENERATOR);
@@ -115,51 +118,7 @@ PUBLIC int kernel_main()
  *======================================================================*/
 void A()
 {
-	int i = 0;
-	while (1)
-	{
-		P(&readPermissionMutex);
-		if(writeCount!=0){
-			P(&readPermission);
-		}
-		V(&readPermissionMutex);
-
-		P(&readMutex);
-
-		// 判断修改在读人数
-		P(&readCountMutex);
-		if(readCount==0){
-			P(&writeMutex);
-		}
-		readCount++;
-		V(&readCountMutex);
-
-		int j;
-		printColorStr("A start.  ", 'r');
-		// printColorStr("<A,R,+> ", 'r');
-		for (j = 0; j < p_proc_ready->needTime; ++j)
-		{
-			printColorStr("A reading.", 'r');
-			if(j==p_proc_ready->needTime-1){
-				printColorStr("A end.    ", 'r');
-			}else{
-				milli_delay(10);
-			}
-		}
-
-
-		P(&readCountMutex);
-		readCount--;
-		if(readCount==0){
-			V(&writeMutex);
-		}
-		V(&readCountMutex);
-
-		V(&readMutex);
-		
-		p_proc_ready->isDone = 1;
-			milli_delay(10);
-	}
+	reader('A');
 }
 
 /*======================================================================*
@@ -167,48 +126,7 @@ void A()
  *======================================================================*/
 void B()
 {
-	int i = 0x1000;
-	while (1)
-	{		
-		P(&readPermissionMutex);
-		if(writeCount!=0){
-			P(&readPermission);
-		}
-		V(&readPermissionMutex);
-
-		P(&readMutex);
-
-		// 判断修改在读人数
-		P(&readCountMutex);
-		if(readCount==0){
-			P(&writeMutex);
-		}
-		readCount++;
-		V(&readCountMutex);
-
-		printColorStr("B start.  ", 'g');
-		int j;
-		for (j = 0; j < p_proc_ready->needTime; ++j)
-		{
-			printColorStr("B reading.", 'g');
-			if(j==p_proc_ready->needTime-1){
-				printColorStr("B end.    ", 'g');
-			}else{
-				milli_delay(10);
-			}
-		}
-		
-		P(&readCountMutex);
-		readCount--;
-		if(readCount==0){
-			V(&writeMutex);
-		}
-		V(&readCountMutex);
-
-		V(&readMutex);
-		p_proc_ready->isDone = 1;
-			milli_delay(10);
-	}
+	reader('B');
 }
 
 /*======================================================================*
@@ -216,119 +134,15 @@ void B()
  *======================================================================*/
 void C()
 {
-	int i = 0x2000;
-	while (1)
-	{		
-		P(&readPermissionMutex);
-		if(writeCount!=0){
-			P(&readPermission);
-		}
-		V(&readPermissionMutex);
-
-		P(&readMutex);		
-		
-		// 判断修改在读人数
-		P(&readCountMutex);
-		if(readCount==0){
-			P(&writeMutex);
-		}
-		readCount++;
-		V(&readCountMutex);
-
-		printColorStr("C start.  ", 'b');
-		int j;
-		for (j = 0; j < p_proc_ready->needTime; ++j)
-		{
-			printColorStr("C reading.", 'b');
-			if(j==p_proc_ready->needTime-1){
-				printColorStr("C end.    ", 'b');
-			}else{
-				milli_delay(10);
-			}
-		}
-
-		P(&readCountMutex);
-		readCount--;
-		if(readCount==0){
-			V(&writeMutex);
-		}
-		V(&readCountMutex);
-		
-		V(&readMutex);
-		p_proc_ready->isDone = 1;
-			milli_delay(10);
-	}
+	reader('C');
 }
-void D(){
-	
-		mysleep(10);
-	while (1)
-	{
-		P(&writeCountMutex);
-		writeCount++;
-		V(&writeCountMutex);
-
-		P(&writeMutex);
-		printColorStr("D start.  ", 'p');
-		int j;
-		for (j = 0; j < p_proc_ready->needTime; ++j)
-		{
-			printColorStr("D writing.", 'p');
-			if(j==p_proc_ready->needTime-1){
-				printColorStr("D end.    ", 'p');
-			}else{
-				milli_delay(10);
-			}
-		}
-		V(&writeMutex);
-
-		P(&writeCountMutex);
-		writeCount--;
-		if(writeCount==0&&readPermission.value<0){ // 如果有读进程在等待
-			V(&readPermission);
-		}
-		V(&writeCountMutex);
-		
-		p_proc_ready->isDone = 1;
-		milli_delay(10);
-	}
-	
+void D()
+{
+	writer('D');
 }
-void E(){
-		mysleep(10);
-	while (1)
-	{
-		P(&writeCountMutex);
-		writeCount++;
-		V(&writeCountMutex);
-
-		P(&writeMutex);
-		printColorStr("E start.  ", 'y');
-		int j;
-		for (j = 0; j < p_proc_ready->needTime; ++j)
-		{
-			printColorStr("E writing.", 'y');
-			if(j==p_proc_ready->needTime-1){
-				printColorStr("E end.    ", 'y');
-			}else{
-				milli_delay(10);
-			}
-		}
-		V(&writeMutex);
-
-		P(&writeCountMutex);
-		
-		writeCount--;
-		if(writeCount==0&&readPermission.value<0){ // 如果有读进程在等待
-			V(&readPermission);
-			
-		}
-		V(&writeCountMutex);
-		
-		p_proc_ready->isDone = 1;
-		milli_delay(10);
-	}
-	
+void E()
+{
+	writer('E');
 }
 void F()
 {
@@ -336,46 +150,156 @@ void F()
 	{
 		if (nowStatus == 'r')
 		{
-			printColorStr("<read==",'w');
+			printColorStr("<read==", 'F');
 			char num = '0' + readCount - 0;
-			char tem[4] = {num,'>',' ','\0'};
-			printColorStr(tem,'w');
+			char tem[4] = {num, '>', ' ', '\0'};
+			printColorStr(tem, 'F');
 		}
-		else if(nowStatus == 'w')
+		else if (nowStatus == 'w')
 		{
-			printColorStr("<writing> ",'w');
-		}else{
-			printColorStr("<<START>> ",'w');
+			printColorStr("<writing> ", 'F');
+		}
+		else
+		{
+			printColorStr("<<START>> ", 'F');
 		}
 
 		mysleep(10);
 	}
 }
+void reader(char process)
+{
+	char pname[2] = {process, '\0'};
+	while (1)
+	{
+		P(&readPermissionMutex); // 保证只有一个被卡在readPermission
+		P(&readPermission);
+		// 判断修改在读人数
+		P(&readCountMutex);
+		if (readPreparedCount == 0)
+		{
+			P(&writeMutex);
+		}
+		readPreparedCount++;
+		V(&readCountMutex);
+		V(&readPermission);
+		V(&readPermissionMutex);
 
-void printColorStr(char* s,char color){
-	if(disp_pos>80*25*2){
+		P(&readMutex);
+		readCount++;
+		printColorStr(pname, process);
+		printColorStr(" start.  ", process);
+		int j;
+		for (j = 0; j < p_proc_ready->needTime; ++j)
+		{
+			printColorStr(pname, process);
+			printColorStr(" reading.", process);
+			if (j == p_proc_ready->needTime - 1)
+			{
+				printColorStr(pname, process);
+				printColorStr(" end.    ", process);
+			}
+			else
+			{
+				milli_delay(10);
+			}
+		}
+		readCount--;
+		V(&readMutex);
+
+		P(&readCountMutex);
+		readPreparedCount--;
+		if (readPreparedCount == 0)
+		{
+			V(&writeMutex);
+		}
+		V(&readCountMutex);
+
+		p_proc_ready->isDone = solveHunger;
+		milli_delay(10);
+	}
+}
+
+void writer(char process)
+{
+	char pname[2] = {process, '\0'};
+	mysleep(10);
+	while (1)
+	{
+		P(&writeCountMutex);
+		if(writeCount==0){
+			
+		// printColorStr(pname, process);
+		// printColorStr(" prepa.  ", process);
+			P(&readPermission);
+			
+		// printColorStr(pname, process);
+		// printColorStr(" prepa.  ", process);
+		}
+		writeCount++;
+		V(&writeCountMutex);
+
+		P(&writeMutex);
+		printColorStr(pname, process);
+		printColorStr(" start.  ", process);
+		int j;
+		for (j = 0; j < p_proc_ready->needTime; ++j)
+		{
+			printColorStr(pname, process);
+			printColorStr(" writing.", process);
+			if (j == p_proc_ready->needTime - 1)
+			{
+				printColorStr(pname, process);
+				printColorStr(" end.    ", process);
+			}
+			else
+			{
+				milli_delay(10);
+			}
+		}
+		V(&writeMutex);
+
+		P(&writeCountMutex);
+		writeCount--;
+		if (writeCount == 0)
+		{ // 如果有读进程在等待
+		// printColorStr(pname, process);
+		// printColorStr(" relea.  ", process);
+			V(&readPermission);
+		}
+		V(&writeCountMutex);
+
+		p_proc_ready->isDone = solveHunger;
+		milli_delay(10);
+	}
+}
+
+void printColorStr(char *s, char color)
+{
+	if (disp_pos > 80 * 25 * 2)
+	{
 		return;
 	}
 	switch (color)
 	{
-	case 'r':
+	case 'A':
 		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, RED));
-		break;	
-	case 'g':
+		break;
+	case 'B':
 		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, GREEN));
-		break;	
-	case 'b':
+		break;
+	case 'C':
 		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, BLUE));
-		break;	
-	case 'w':
+		break;
+	case 'F':
 		disp_str(s);
 		break;
-	case 'y':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
-		break;	
-	case 'p':
+	case 'D':
 		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, PURPLE));
-		break;	
+		break;
+	case 'E':
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
+		break;
 	default:
 		disp_str(s);
 		break;

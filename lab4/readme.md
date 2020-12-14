@@ -160,6 +160,7 @@ PUBLIC void wakeup(Semaphore *mutex)
 ### 3.1 理解
 
 * 如果有读者在读，写者就得一直等待；
+* 已有进程运行时，有写者和读者进入，即使读者晚于写者到来，也可以优先进入临界区进行读
 * 读者进程的优先级高于写者进程，这意味着在进程调度和睡眠唤醒时候都是如此；
 
 ### 3.2 修改PROCESS
@@ -205,15 +206,6 @@ PUBLIC void clock_handler(int irq)
 {
 	ticks++;
 	p_proc_ready->ticks--;
-	// if (k_reenter != 0) {
-	// 	return;
-	// }
-
-	// 若开启，则为非抢占式
-	// if (p_proc_ready->ticks > 0) {
-	// 	return;
-	// }
-	// if(p_proc_ready->isBlock!=1){
 	schedule();
 }
 
@@ -221,7 +213,7 @@ PUBLIC void clock_handler(int irq)
 
 去掉原有代码一些不必要的东西
 
-### 3.4 信号量
+### 3.4 信号量PV操作
 
 ```c
 // global.h
@@ -231,59 +223,62 @@ typedef struct semaphore{
 }Semaphore;
 
 
-EXTERN Semaphore readMutex;
-EXTERN Semaphore writeMutex;
-EXTERN Semaphore countMutex;
-EXTERN int readNum;     // 允许同时读的个数
-EXTERN int writeNum;    // 允许同时写的个数，默认为1
-
-EXTERN char nowStatus;
+EXTERN Semaphore readMutex; // value=并发数
+EXTERN Semaphore writeMutex;// value=1
+EXTERN Semaphore countMutex;// value=1
+EXTERN Semaphore writeMutexMutex;// value=1
 ```
 
-对ABC进行进行PV操作，目前仅实现读者有限，以A为例
+**读者进程伪代码**：
 
 ```c
-/*======================================================================*
-                               A
- *======================================================================*/
-void A()
+void reader()
 {
-	int i = 0;
-		// mysleep(10);
-	while (1)
-	{
+    while(1){
+		P(&countMutex);
+			if (readPreparedCount == 0){ 
+             P(&writeMutex);
+          }
+			readPreparedCount++;
+		V(&countMutex);
+
 		P(&readMutex);
-		// 判断修改在读人数
-		P(&countMutex);
-		if(readCount==0){
-			P(&writeMutex);
-		}
-		readCount++;
-		V(&countMutex);
-		int j;
-		printColorStr("A start.  ", 'r');
-		for (j = 0; j < p_proc_ready->needTime; ++j)
-		{
-			printColorStr("A reading.", 'r');
-			if(j==p_proc_ready->needTime-1){
-				printColorStr("A end.    ", 'r');
-			}else{
-				milli_delay(10);
-			}
-		}
-		P(&countMutex);
-		readCount--;
-		if(readCount==0){
-			V(&writeMutex);
-		}
-		V(&countMutex);
+			readCount++; // 记录正在读的数量，供F打印
+			// 读文件
+			readCount--;
 		V(&readMutex);
-		milli_delay(10);
+
+		P(&countMutex);
+			readPreparedCount--;
+			if (readPreparedCount == 0){
+				V(&writeMutex);
+			}
+		V(&countMutex);
+    
+		p_proc_ready->isDone = solveHunger; // 解决饿死
+		milli_delay(10); // 废弃当前时间片，至少等到下个时间片才能进入循环    
+    }
+}
+```
+
+**写者进程伪代码**
+
+```c
+void writer(){
+    while (1){	
+		P(&writeMutexMutex); // 只允许一个写者进程在writeMutex排队，其他写者进程只能在writeMutexMutex排队
+		P(&writeMutex);
+			//写文件
+		V(&writeMutex);
+		V(&writeMutexMutex);
+
+		p_proc_ready->isDone = solveHunger; // 解决饿死
+		milli_delay(10); // 废弃当前时间片，至少等到下个时间片才能进入循环 
 	}
 }
 ```
 
-F进程
+**F进程**
 
 ```c
 void F()
@@ -296,8 +291,6 @@ void F()
 	}
 }
 ```
-
-
 
 ### 3.5 调度算法
 
@@ -347,54 +340,170 @@ PUBLIC void schedule()
 
 ### 3.6 结果
 
+> 为了体现读者优先，我们在读者进程开头加上`mysleep(10)`，也就是让写者进程先到达
+
 #### 并发量1
 
-默认情况下，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
+读者进程到达后，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
 
-![image-20201210220307993](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210220307993.png)
+![image-20201214211659778](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214211659778.png)
 
-为了体现一下写者进程，我们在ABC进程开头加上`mysleep(10)`
 
-结果如下图所示。在一开始，读者进程让了一个时间片给写者进程，D开始写，因此读者进程等待写进程接受。在这时E也进入到了`writeMutex`的队列中。
-
-在D接受后，ABC依次运行，运行到A结束后，ABC进程卡在了` P(&writeMutex);}`，给了E进程运行的机会。可是这也只运行一次，之后DE都饿死了
-
-![image-20201210233906564](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210233906564.png)
 
 #### 并发量2
 
-默认情况下，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
+读者进程到达后，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
 
-![image-20201210233635789](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210233635789.png)
-
-为了体现一下写者进程，我们在ABC进程开头加上`mysleep(10)`
-
-结果如下图所示。在一开始，读者进程让了一个时间片给写者进程，D开始写，因此读者进程等待写进程接受。在这时E也进入到了`writeMutex`的队列中。之后，由于DE总有机会进入`writeMutex`，所以总能使得ABC进程卡在了` P(&writeMutex);}`中，偷的时间运行。
-
-![image-20201210234401660](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210234401660.png)
+![image-20201214211801956](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214211801956.png)
 
 #### 并发量3
 
-默认情况下，写者进程被饿死。
+读者进程到达后，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
 
-![image-20201210233540526](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210233540526.png)
-
-为了体现一下写者进程，我们在ABC进程开头加上`mysleep(10)`，解释如并发量2的情况
-
-![image-20201210234740205](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210234740205.png)
+![image-20201214211840976](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220154791.png)
 
 ## 4 写者优先
 
-### 结果
+### 4.1 理解
+
+* 已有进程运行时，有写者和读者进入，即使读者晚于写者到来，也优先进行写操作
+
+	例如，对于到达顺序【R1】【W1】【R2】【W2】【R3】而言，运行顺序为
+
+	【R1】【W1】【W2】【R2】【R3】
+
+* 写者进程的优先级高于读者进程，这意味着在进程调度和睡眠唤醒时候都是如此；
+
+### 4.2 信号量PV操作
+
+使用的信号量如下
+
+```c
+typedef struct semaphore{
+    int value;
+    PROCESS* queue[NR_TASKS];
+}Semaphore;
+
+
+EXTERN Semaphore readMutex; // value=1 ，保证只有一个在读
+EXTERN Semaphore writeMutex; // value=读并发数
+EXTERN Semaphore readCountMutex;// value=1
+EXTERN Semaphore writeCountMutex;// value=1
+EXTERN Semaphore readPermission; // value=1
+EXTERN Semaphore readPermissionMutex; // // value=1，保证只有一个读者被卡在readPermission
+```
+
+**读进程伪代码如下：**
+
+```c
+void reader()
+{
+	while (1){
+		P(&readPermissionMutex); // 保证只有一个被卡在readPermission
+		P(&readPermission); // 判断修改在读人数
+		P(&readCountMutex);
+			if (readPreparedCount == 0){
+				P(&writeMutex);
+			}
+			readPreparedCount++;
+		V(&readCountMutex);
+		V(&readPermission);
+		V(&readPermissionMutex);
+
+		P(&readMutex);
+			readCount++;
+			//读操作
+			readCount--;
+		V(&readMutex);
+
+		P(&readCountMutex);
+			readPreparedCount--;
+			if (readPreparedCount == 0){
+				V(&writeMutex);
+			}
+		V(&readCountMutex);
+
+		p_proc_ready->isDone = solveHunger;
+		milli_delay(10);
+	}
+}
+```
+
+**写进程伪代码：**
+
+```c
+void writer(char process)
+{
+	while (1){
+		P(&writeCountMutex);
+			writeCount++;
+			if(writeCount==1){
+				P(&readPermission);
+			}
+		V(&writeCountMutex);
+
+		P(&writeMutex);
+		// 写操作
+		V(&writeMutex);
+
+		P(&writeCountMutex);
+			writeCount--;
+			if (writeCount == 0){ 
+				V(&readPermission);
+			}
+		V(&writeCountMutex);
+
+		p_proc_ready->isDone = solveHunger;
+		milli_delay(10);
+	}
+}
+```
+
+### 4.3 结果
+
+> 为了体现写者优先，我们在写者进程开头加上`mysleep(10)`，也就是让读者进程先到达
+
+并发量为1、2、3的情况都是一样的，写者进程到达后，原先排队的读者进程就很难再进入。这里和读者优先有一些不同在于，读者进程并不会被饿死，而会“偷”到一些机会进行运行。
+
+这其实与写者优先**并不矛盾**，实际上是**由于调度算法决定**的，本人在实验中使用的调度算法是优先级调度，而同优先级情况下会优先选择已使用时间片较少的进程。
+
+以此处为例
+
+![image-20201214220154791](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214211840976.png)
+
+在D进程运行过程中，D的时间片使用时间一直＜E，所以E没有机会运行，也就是`writeCount`一直为1。当D进程退出后，运行了`V(&readPermission);`，使得读者进程被允许执行。此时`readPermission.value`回到了0。
+
+这时候E才到达，即使调度算法选择了E，由于`writeCount==0`，E会被卡在`P(&readPermission);`，从而B偷的时间读。
+
+回到写者优先的定义上，
+
+> 已有进程运行时，有写者和读者进入，即使读者晚于写者到来，也优先进行写操作
+
+而这时候，在D进程时候，只有B到了，D进程结束后E才进入，所以并不矛盾！
 
 #### 并发量1
 
-![image-20201210235107979](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210235107979.png)
+![image-20201214220039204](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220039204.png)
 
 #### 并发量2
 
-![image-20201210235038411](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210235038411.png)
+![image-20201214220041404](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220041404.png)
 
 #### 并发量3
 
-![image-20201210235013853](C:\Users\admin\AppData\Roaming\Typora\typora-user-images\image-20201210235013853.png)
+![image-20201214220043389](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220043389.png)
+
+## 5 解决饥饿问题
+
+进程结构体引入变量`isDone`，所有进程都运行过一遍后，`isDone`重置，以白色输出`<RESTART>`
+
+在`main.c`中修改此行可对解决饥饿进行开关
+
+```c
+// 是否解决饿死
+solveHunger = 0;
+```
+
+解决饥饿后的并发量为3读者优先：
+
+![image-20201214222203902](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214222203902.png)
