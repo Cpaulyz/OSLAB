@@ -1,3 +1,11 @@
+> TODO：更新了一些内容，取消了优先级在进程调度和队列中的使用
+>
+> 可以去掉的内容有：优先级、useTime
+>
+> 需要修改截图，只有并发量>进程数的时候会饿死
+
+
+
 ## 1 添加新task
 
 ![image-20201208105527572](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201208105527572.png)
