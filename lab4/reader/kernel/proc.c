@@ -19,30 +19,29 @@
 PUBLIC void schedule()
 {
 	disable_irq(CLOCK_IRQ);
+	
 	// 先检查一遍，如果都Done了，重新开始
 	check();
-	PROCESS *select;
-	for (select = proc_table; select < proc_table + NR_TASKS; select++)
-	{
-		if (isRunnable(select))
+	// 新版
+	PROCESS *select = proc_table+5;
+	if(isRunnable(select)){
+		//nothing
+		p_proc_ready = select;
+	}else{
+		while (!isRunnable(pre_proc))
 		{
-			break;
-		}
-	} // 找到第一个可运行，假设一定存在
-	PROCESS *p;
-	for (p = proc_table; p < proc_table + NR_TASKS; p++)
-	{
-		if (isRunnable(p))
-		{
-			if(p->priority > select->priority){
-				select = p;
-			}else if(p->priority == select->priority && p->useTime < select->useTime){
-				select = p;
+			pre_proc++;
+			if(pre_proc==select){
+				pre_proc = proc_table;
 			}
 		}
+		p_proc_ready = pre_proc;
+		pre_proc++;
+			if(pre_proc==select){
+				pre_proc = proc_table;
+			}
+
 	}
-	select->useTime++;
-	p_proc_ready = select;
 	if(p_proc_ready->type=='r'||p_proc_ready->type=='w'){ // 修改状态，供F打印
 		nowStatus = p_proc_ready->type;
 	}
@@ -61,7 +60,31 @@ PUBLIC int sys_get_ticks()
  *======================================================================*/
 PUBLIC void sys_myprint(char *s)
 {
-	disp_str(s);
+	int offset = p_proc_ready - proc_table;
+	switch (offset)
+	{
+	case 0:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, RED));
+		break;
+	case 1:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, GREEN));
+		break;
+	case 2:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, BLUE));
+		break;
+	case 5:
+		disp_str(s);
+		break;
+	case 3:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, PURPLE));
+		break;
+	case 4:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
+		break;
+	default:
+		disp_str(s);
+		break;
+	}
 }
 
 /*======================================================================*
@@ -116,16 +139,7 @@ PUBLIC void wakeup(Semaphore *mutex)
 
 	PROCESS *wake = mutex->queue[0];
 	int i,index=0;
-	// 选出优先级最高的进程，优先唤醒
-	for (i = 0; i < (-mutex->value+1); ++i)
-	{
-		if(mutex->queue[i]->priority > wake->priority){
-			wake = mutex->queue[i];
-			index = i;
-		}
-	}
-	//然后整体往前移,现在value指的是队列中剩下元素个数的负数
-	for (i = index; i < (-mutex->value); ++i)
+	for (i = 0; i < (-mutex->value); ++i)
 	{
 		mutex->queue[i] = mutex->queue[i + 1];
 	}
@@ -139,6 +153,7 @@ PUBLIC int isRunnable(PROCESS* p){
 		return 0;
 	}
 }
+
 void check(){
 	PROCESS *p;
 	int allDone = 1;
@@ -152,7 +167,6 @@ void check(){
 		//如果全部做完了，任务重启
 		for (p = proc_table; p < proc_table + NR_TASKS-1; p++){
 			p->isDone = 0;
-			p->useTime = 0;
 		}
 		disp_str("<RESTART> ");
 	}

@@ -1,10 +1,13 @@
-> TODO：更新了一些内容，取消了优先级在进程调度和队列中的使用
->
-> 可以去掉的内容有：优先级、useTime
->
-> 需要修改截图，只有并发量>进程数的时候会饿死
+# OrangeS使用信号量PV操作实现读者优先、写者优先
 
+[TOC]
 
+## 0 代码说明
+
+* `code\reader`文件夹为读者优先
+* `code\writer`文件夹为写者优先
+
+基于6r源码进行设计
 
 ## 1 添加新task
 
@@ -43,7 +46,7 @@ myprint:
 	ret
 ```
 
-`proc.c`
+`proc.c`，这里用了一些小技巧，通过一个参数就能实现彩色打印，就是判断进程的偏移量，选择是使用`disp_str`还是`disp_color_str`
 
 ```c
 /*======================================================================*
@@ -51,7 +54,31 @@ myprint:
  *======================================================================*/
 PUBLIC void sys_myprint(char* s)
 {
-	disp_str(s);
+	int offset = p_proc_ready - proc_table;
+	switch (offset)
+	{
+	case 0:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, RED));
+		break;
+	case 1:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, GREEN));
+		break;
+	case 2:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, BLUE));
+		break;
+	case 5:
+		disp_str(s);
+		break;
+	case 4:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, PURPLE));
+		break;
+	case 3:
+		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
+		break;
+	default:
+		disp_str(s);
+		break;
+	}
 }
 ```
 
@@ -168,8 +195,7 @@ PUBLIC void wakeup(Semaphore *mutex)
 ### 3.1 理解
 
 * 如果有读者在读，写者就得一直等待；
-* 已有进程运行时，有写者和读者进入，即使读者晚于写者到来，也可以优先进入临界区进行读
-* 读者进程的优先级高于写者进程，这意味着在进程调度和睡眠唤醒时候都是如此；
+* 如果写者进程在读，读者进程到来后，还没写的进程必须让读者先读
 
 ### 3.2 修改PROCESS
 
@@ -182,10 +208,8 @@ typedef struct s_proc
 	DESCRIPTOR ldts[LDT_SIZE]; /* local descriptors for code and data */
 
 	int ticks; /* remained ticks */
-	int priority;
 	int wakeup_ticks;	// 睡醒的时刻
 	int needTime;		// 需要的时间片
-	int useTime;		// ·
 	int isBlock;		// 1，被阻塞；0.非阻塞
 	int isDone;			// 1，已完成；0，未完成
 	char type;			// 'r'/'w'
@@ -198,10 +222,8 @@ typedef struct s_proc
 对此进行一些说明
 
 * ticks，废除了，没用
-* priority，优先级，比如读者有限，则读者进程优先级高于写者进程。其中F进程优先级最高
 * wakeup_ticks，使用mysleep后睡眠
 * needTime，需要的时间片
-* useTime，已使用的时间片，调度算法总会选择优先级最高进程中使用时间片最少的进程
 * isBlock，阻塞状态，pv操作使用，如果在P时候被sleep，则Block；V时wake，则取消Block
 
 ### 3.3 时间中断处理
@@ -317,28 +339,27 @@ PUBLIC void schedule()
 {
 	disable_irq(CLOCK_IRQ);
 	
-	PROCESS *select;
-	for (select = proc_table; select < proc_table + NR_TASKS; select++)
-	{
-		if (isRunnable(select))
+	// 先检查一遍，如果都Done了，重新开始
+	check();
+	PROCESS *select = proc_table+5; // 优先选择F进程
+	if(isRunnable(select)){
+		//nothing
+		p_proc_ready = select;
+	}else{ // 如果F进程阻塞了，顺序按时间片调度其他进程
+		while (!isRunnable(pre_proc))
 		{
-			break;
-		}
-	} // 找到第一个可运行，假设一定存在
-	PROCESS *p;
-	for (p = proc_table; p < proc_table + NR_TASKS; p++)
-	{
-		if (isRunnable(p))
-		{
-			if(p->priority > select->priority){
-				select = p;
-			}else if(p->priority == select->priority && p->useTime < select->useTime){
-				select = p;
+			pre_proc++;
+			if(pre_proc==select){
+				pre_proc = proc_table;
 			}
 		}
+		p_proc_ready = pre_proc;
+		pre_proc++;
+			if(pre_proc==select){
+				pre_proc = proc_table;
+			}
+
 	}
-	select->useTime++;
-	p_proc_ready = select;
 	if(p_proc_ready->type=='r'||p_proc_ready->type=='w'){ // 修改状态，供F打印
 		nowStatus = p_proc_ready->type;
 	}
@@ -354,7 +375,7 @@ PUBLIC void schedule()
 
 读者进程到达后，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
 
-![image-20201214211659778](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214211659778.png)
+![image-20201227143657778](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227143657778.png))
 
 
 
@@ -362,13 +383,19 @@ PUBLIC void schedule()
 
 读者进程到达后，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
 
-![image-20201214211801956](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214211801956.png)
+![image-20201227143740682](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227143740682.png)
 
 #### 并发量3
 
-读者进程到达后，写者进程被饿死，这很好理解，因为不断有读者进程在排队，而读者进程优先级高，所以轮不到写者进程
+当进程量=并发量时，读者进程到达后，写者进程不被饿死
 
-![image-20201214211840976](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220154791.png)
+因为总会有时刻，读并发==0，这时候读进程会`V(&writeMutex);`，使写进程进入
+
+比如在箭头所示的时间点，A完成了第二次读，BC完成了第一次读，都退出了，并发量=0
+
+![image-20201227144214543](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227144214543.png)
+
+![image-20201227143826375](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227143826375.png)
 
 ## 4 写者优先
 
@@ -380,7 +407,7 @@ PUBLIC void schedule()
 
 	【R1】【W1】【W2】【R2】【R3】
 
-* 写者进程的优先级高于读者进程，这意味着在进程调度和睡眠唤醒时候都是如此；
+* 写者进程到来后，已经进入队列的读进程可以先读，还没到来的都必须等写完才可以读
 
 ### 4.2 信号量PV操作
 
@@ -471,35 +498,19 @@ void writer(char process)
 
 > 为了体现写者优先，我们在写者进程开头加上`mysleep(10)`，也就是让读者进程先到达
 
-并发量为1、2、3的情况都是一样的，写者进程到达后，原先排队的读者进程就很难再进入。这里和读者优先有一些不同在于，读者进程并不会被饿死，而会“偷”到一些机会进行运行。
-
-这其实与写者优先**并不矛盾**，实际上是**由于调度算法决定**的，本人在实验中使用的调度算法是优先级调度，而同优先级情况下会优先选择已使用时间片较少的进程。
-
-以此处为例
-
-![image-20201214220154791](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214211840976.png)
-
-在D进程运行过程中，D的时间片使用时间一直＜E，所以E没有机会运行，也就是`writeCount`一直为1。当D进程退出后，运行了`V(&readPermission);`，使得读者进程被允许执行。此时`readPermission.value`回到了0。
-
-这时候E才到达，即使调度算法选择了E，由于`writeCount==0`，E会被卡在`P(&readPermission);`，从而B偷的时间读。
-
-回到写者优先的定义上，
-
-> 已有进程运行时，有写者和读者进入，即使读者晚于写者到来，也优先进行写操作
-
-而这时候，在D进程时候，只有B到了，D进程结束后E才进入，所以并不矛盾！
+根据前面的解释，由于写并发量为1，写进程为2，所以读者进程在写者进程到来后会被饿死
 
 #### 并发量1
 
-![image-20201214220039204](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220039204.png)
+![image-20201227144559557](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227144559557.png)
 
 #### 并发量2
 
-![image-20201214220041404](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220041404.png)
+![image-20201227144625616](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227144625616.png)
 
 #### 并发量3
 
-![image-20201214220043389](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214220043389.png)
+![image-20201227144649817](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227144649817.png)
 
 ## 5 解决饥饿问题
 
@@ -509,9 +520,9 @@ void writer(char process)
 
 ```c
 // 是否解决饿死
-solveHunger = 0;
+solveHunger = 1;
 ```
 
-解决饥饿后的并发量为3读者优先：
+解决饥饿后的并发量为3写者优先：
 
-![image-20201214222203902](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201214222203902.png)
+![image-20201227144759213](https://cyzblog.oss-cn-beijing.aliyuncs.com/img/image-20201227144759213.png)

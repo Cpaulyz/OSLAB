@@ -29,6 +29,8 @@ extern	char		task_stack[];
 extern  TASK            task_table[];
 extern	irq_handler	irq_table[];
 
+PUBLIC  PROCESS* pre_proc;
+
 // 新增
 typedef struct semaphore{
     int value;
@@ -52,3 +54,7 @@ EXTERN int solveHunger; // 是否解决饿死
 EXTERN int waiting; // 1,有读进程在等待；0,没用读进程在等待
 
 EXTERN char nowStatus;
+
+EXTERN char writeStr[];
+EXTERN char readStr[];
+EXTERN char endStr[];

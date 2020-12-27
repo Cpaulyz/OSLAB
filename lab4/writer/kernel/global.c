@@ -17,6 +17,8 @@
 
 PUBLIC	PROCESS			proc_table[NR_TASKS];
 
+PUBLIC  PROCESS* pre_proc = proc_table;
+
 PUBLIC	char			task_stack[STACK_SIZE_TOTAL];
 
 PUBLIC	TASK	task_table[NR_TASKS] = {{A, STACK_SIZE_A, "A"},
@@ -34,3 +36,6 @@ PUBLIC	system_call		sys_call_table[NR_SYS_CALL] = {sys_get_ticks,
                                                     sys_p,
                                                     sys_v};
 
+PUBLIC char writeStr[] = " writing.";
+PUBLIC char readStr[] = " reading.";
+PUBLIC char endStr[] = " end.    ";

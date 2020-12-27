@@ -58,15 +58,6 @@ PUBLIC int kernel_main()
 	proc_table[0].type = proc_table[1].type = proc_table[2].type = 'r';
 	proc_table[3].type = proc_table[4].type = 'w';
 
-	int readPriority = 2;
-	int writePriority = 1;
-
-	proc_table[0].priority = readPriority;	//A
-	proc_table[1].priority = readPriority;	//B
-	proc_table[2].priority = readPriority;	//C
-	proc_table[3].priority = writePriority; //D
-	proc_table[4].priority = writePriority; //E
-	proc_table[5].priority = 99;			//F
 
 	proc_table[0].ticks = proc_table[0].needTime = 2;
 	proc_table[1].ticks = proc_table[1].needTime = 3;
@@ -89,7 +80,7 @@ PUBLIC int kernel_main()
 	writeMutexMutex.value = 1;
 
 	// 是否需要解决饿死
-	solveHunger = 1;
+	solveHunger = 0;
 
 	/* 初始化 8253 PIT */
 	out_byte(TIMER_MODE, RATE_GENERATOR);
@@ -101,6 +92,7 @@ PUBLIC int kernel_main()
 	disp_pos = 0;
 	for (i = 0; i < 80 * 25; i++)
 	{
+		// disp_str(" ");
 		disp_str(" ");
 	}
 	disp_pos = 0;
@@ -188,11 +180,11 @@ void reader(char process)
 		for (j = 0; j < p_proc_ready->needTime; ++j)
 		{
 			printColorStr(pname, process);
-			printColorStr(" reading.", process);
+			printColorStr(readStr, process);
 			if (j == p_proc_ready->needTime - 1)
 			{
 				printColorStr(pname, process);
-				printColorStr(" end.    ", process);
+				printColorStr(endStr, process);
 			}
 			else
 			{
@@ -228,11 +220,11 @@ void writer(char process)
 		for (j = 0; j < p_proc_ready->needTime; ++j)
 		{
 			printColorStr(pname, process);
-			printColorStr(" writing.", process);
+			printColorStr(writeStr, process);
 			if (j == p_proc_ready->needTime - 1)
 			{
 				printColorStr(pname, process);
-				printColorStr(" end.    ", process);
+				printColorStr(endStr, process);
 			}
 			else
 			{
@@ -253,28 +245,30 @@ void printColorStr(char *s, char color)
 	{
 		return;
 	}
-	switch (color)
-	{
-	case 'A':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, RED));
-		break;
-	case 'B':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, GREEN));
-		break;
-	case 'C':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, BLUE));
-		break;
-	case 'F':
-		disp_str(s);
-		break;
-	case 'D':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, PURPLE));
-		break;
-	case 'E':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
-		break;
-	default:
-		disp_str(s);
-		break;
-	}
+	
+	myprint(s);
+	// switch (color)
+	// {
+	// case 'A':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, RED));
+	// 	break;
+	// case 'B':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, GREEN));
+	// 	break;
+	// case 'C':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, BLUE));
+	// 	break;
+	// case 'F':
+	// 	disp_str(s);
+	// 	break;
+	// case 'D':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, PURPLE));
+	// 	break;
+	// case 'E':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
+	// 	break;
+	// default:
+	// 	disp_str(s);
+	// 	break;
+	// }
 }

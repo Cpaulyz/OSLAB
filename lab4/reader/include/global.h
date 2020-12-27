@@ -24,6 +24,7 @@ EXTERN	u32		k_reenter;
 EXTERN	TSS		tss;
 EXTERN	PROCESS*	p_proc_ready;
 
+PUBLIC  PROCESS* pre_proc;
 extern	PROCESS		proc_table[];
 extern	char		task_stack[];
 extern  TASK            task_table[];
@@ -47,3 +48,8 @@ EXTERN int readCount;   // 正在读的个数
 EXTERN int solveHunger; // 是否解决饿死
 
 EXTERN char nowStatus;
+
+
+EXTERN char writeStr[];
+EXTERN char readStr[];
+EXTERN char endStr[];

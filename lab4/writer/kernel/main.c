@@ -58,16 +58,6 @@ PUBLIC int kernel_main()
 	proc_table[0].type = proc_table[1].type = proc_table[2].type = 'r';
 	proc_table[3].type = proc_table[4].type = 'w';
 
-	int readPriority = 1;
-	int writePriority = 2;
-
-	proc_table[0].priority = readPriority;	//A
-	proc_table[1].priority = readPriority;	//B
-	proc_table[2].priority = readPriority;	//C
-	proc_table[3].priority = writePriority; //D
-	proc_table[4].priority = writePriority; //E
-	proc_table[5].priority = 99;			//F
-
 	proc_table[0].ticks = proc_table[0].needTime = 2;
 	proc_table[1].ticks = proc_table[1].needTime = 3;
 	proc_table[2].ticks = proc_table[2].needTime = 3;
@@ -81,7 +71,7 @@ PUBLIC int kernel_main()
 	p_proc_ready = proc_table;
 
 	/*初始化信号量相关*/
-	readNum = 3;
+	readNum = 1;
 	readMutex.value = readNum;
 	writeNum = 1;
 	writeMutex.value = writeNum;
@@ -89,9 +79,12 @@ PUBLIC int kernel_main()
 	writeCountMutex.value = 1;
 	readPermission.value = 1;
 	readPermissionMutex.value = 1;
+	readPreparedCount = 0;
+	writeCount = 0;
+
 
 	// 是否解决饿死
-	solveHunger = 0;
+	solveHunger = 1;
 
 	/* 初始化 8253 PIT */
 	out_byte(TIMER_MODE, RATE_GENERATOR);
@@ -193,11 +186,13 @@ void reader(char process)
 		for (j = 0; j < p_proc_ready->needTime; ++j)
 		{
 			printColorStr(pname, process);
-			printColorStr(" reading.", process);
+			printColorStr(readStr, process);
+			// printColorStr(" reading.", process);
 			if (j == p_proc_ready->needTime - 1)
 			{
 				printColorStr(pname, process);
-				printColorStr(" end.    ", process);
+				printColorStr(endStr, process);
+				// printColorStr(" end.    ", process);
 			}
 			else
 			{
@@ -228,17 +223,10 @@ void writer(char process)
 	{
 		P(&writeCountMutex);
 		if(writeCount==0){
-			
-		// printColorStr(pname, process);
-		// printColorStr(" prepa.  ", process);
 			P(&readPermission);
-			
-		// printColorStr(pname, process);
-		// printColorStr(" prepa.  ", process);
 		}
 		writeCount++;
 		V(&writeCountMutex);
-
 		P(&writeMutex);
 		printColorStr(pname, process);
 		printColorStr(" start.  ", process);
@@ -246,11 +234,12 @@ void writer(char process)
 		for (j = 0; j < p_proc_ready->needTime; ++j)
 		{
 			printColorStr(pname, process);
-			printColorStr(" writing.", process);
+			// printColorStr(" writing.", process);
+			printColorStr(writeStr, process);
 			if (j == p_proc_ready->needTime - 1)
 			{
 				printColorStr(pname, process);
-				printColorStr(" end.    ", process);
+				printColorStr(endStr, process);
 			}
 			else
 			{
@@ -263,8 +252,6 @@ void writer(char process)
 		writeCount--;
 		if (writeCount == 0)
 		{ // 如果有读进程在等待
-		// printColorStr(pname, process);
-		// printColorStr(" relea.  ", process);
 			V(&readPermission);
 		}
 		V(&writeCountMutex);
@@ -280,28 +267,29 @@ void printColorStr(char *s, char color)
 	{
 		return;
 	}
-	switch (color)
-	{
-	case 'A':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, RED));
-		break;
-	case 'B':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, GREEN));
-		break;
-	case 'C':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, BLUE));
-		break;
-	case 'F':
-		disp_str(s);
-		break;
-	case 'D':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, PURPLE));
-		break;
-	case 'E':
-		disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
-		break;
-	default:
-		disp_str(s);
-		break;
-	}
+	myprint(s);
+	// switch (color)
+	// {
+	// case 'A':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, RED));
+	// 	break;
+	// case 'B':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, GREEN));
+	// 	break;
+	// case 'C':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, BLUE));
+	// 	break;
+	// case 'F':
+	// 	disp_str(s);
+	// 	break;
+	// case 'D':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, PURPLE));
+	// 	break;
+	// case 'E':
+	// 	disp_color_str(s, BRIGHT | MAKE_COLOR(BLACK, YELLO));
+	// 	break;
+	// default:
+	// 	disp_str(s);
+	// 	break;
+	// }
 }

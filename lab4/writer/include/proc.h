@@ -35,10 +35,8 @@ typedef struct s_proc
 	DESCRIPTOR ldts[LDT_SIZE]; /* local descriptors for code and data */
 
 	int ticks; /* remained ticks */
-	int priority;
 	int wakeup_ticks;	// 睡醒的时刻
 	int needTime;		// 需要的时间片
-	int useTime;		// ·
 	int isBlock;		// 1，被阻塞；0.非阻塞
 	int isDone;			// 1，已完成；0，未完成
 	char type;			// 'r'/'w'
