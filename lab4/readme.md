@@ -88,14 +88,14 @@ PUBLIC void sys_myprint(char* s)
 
 ```assembly
 sys_call:
-        call    save
-        sti
-		push	ecx
-        call    [sys_call_table + eax * 4]
-        add 	esp,4
-		mov     [esi + EAXREG - P_STACKBASE], eax
-        cli
-        ret
+	call    save
+	sti
+	push	ecx
+	call    [sys_call_table + eax * 4]
+	add 	esp,4
+	mov     [esi + EAXREG - P_STACKBASE], eax
+	cli
+	ret
 ```
 
 ### 2.2 mysleep
@@ -266,23 +266,22 @@ void reader()
 {
     while(1){
 		P(&countMutex);
-			if (readPreparedCount == 0){ 
-             P(&writeMutex);
-          }
+		if (readPreparedCount == 0){ 
+		P(&writeMutex);}
 			readPreparedCount++;
 		V(&countMutex);
 
 		P(&readMutex);
-			readCount++; // 记录正在读的数量，供F打印
-			// 读文件
-			readCount--;
+		readCount++; // 记录正在读的数量，供F打印
+		// 读文件
+		readCount--;
 		V(&readMutex);
 
 		P(&countMutex);
-			readPreparedCount--;
-			if (readPreparedCount == 0){
-				V(&writeMutex);
-			}
+		readPreparedCount--;
+		if (readPreparedCount == 0){
+			V(&writeMutex);
+		}
 		V(&countMutex);
     
 		p_proc_ready->isDone = solveHunger; // 解决饿死
